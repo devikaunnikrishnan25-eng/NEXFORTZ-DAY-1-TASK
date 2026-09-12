@@ -45,6 +45,15 @@ The `loop()` function:
 - Waits for one second.
 - Repeats continuously.
 
+## Board Configuration
+
+- **Board:** ESP32 Dev Module
+- **Flash Size:** 4MB (32Mb)
+- **Partition Scheme:** Default 4MB with spiffs (1.2MB APP/1.5MB SPIFFS)
+- **Flash Frequency:** 80MHz
+- **Flash Mode:** QIO
+- **PSRAM:** Disabled
+
 ## Verification
 
 The ESP32 was successfully programmed and the Blink operation was observed on the hardware.
@@ -58,6 +67,7 @@ The following images are included in the `images` folder:
 - `blink sketch.jpeg` – Blink sketch/code
 - `output.jpeg` – Hardware output
 - `serial monitor.jpeg` – Serial Monitor output
+
 
 ## Result
 
