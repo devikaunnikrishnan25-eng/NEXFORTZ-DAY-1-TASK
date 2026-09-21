@@ -1,37 +1,27 @@
-# DAY 5 – DHT SENSOR WITH ERROR HANDLING
+# DAY 5 – TASK 3: DHT SENSOR ON ESP32
 
-## 1. Introduction
+## 1. Objective
 
-The objective of Day 5 was to interface a temperature and humidity sensor with the ESP32 and implement reliable sensor reading with proper error handling.
+The objective of this task is to interface a DHT sensor with an ESP32 and develop a reliable temperature and humidity monitoring system with error handling and JSON serial output.
 
-The Nexforz IoT Learning Lab task specifies the use of a DHT22 sensor. For the hardware implementation, a **DHT11 sensor** was used instead. The DHT11 was connected to **GPIO 4** of the ESP32.
+The implementation includes:
 
-The program was designed to handle failed sensor readings without stopping the ESP32 program. It also collects multiple samples and applies a median filter to reduce the effect of occasional abnormal readings. The final sensor data is displayed in a structured JSON format for future IoT and MQTT integration.
+* Temperature and humidity measurement
+* `NaN` detection
+* Automatic retry mechanism
+* Multiple sensor samples
+* Median filtering
+* Structured JSON output
+* Continuous operation without crashing on sensor errors
 
----
-
-## 2. Objectives
-
-The main objectives of this task were:
-
-* Interface a DHT sensor with the ESP32.
-* Read temperature and humidity values.
-* Use GPIO 4 for sensor data.
-* Implement error handling for invalid sensor readings.
-* Retry failed readings up to three times.
-* Collect multiple sensor samples.
-* Apply a median filter to the latest three samples.
-* Prevent sensor failures from crashing the main program.
-* Generate structured JSON output.
+The assigned specification mentions a DHT22 sensor. For the actual hardware implementation, a **DHT11 sensor** was used.
 
 ---
 
-## 3. Hardware Requirements
-
-The following hardware was used:
+## 2. Hardware Used
 
 * ESP32 development board
-* DHT11 temperature and humidity sensor
+* DHT11 sensor
 * 10 kΩ pull-up resistor
 * Breadboard
 * Jumper wires
@@ -39,63 +29,58 @@ The following hardware was used:
 
 ---
 
-## 4. Software Requirements
+## 3. Hardware Connections
 
-The following software and libraries were used:
+The DHT11 sensor was connected to **GPIO 4** of the ESP32.
 
-* Arduino IDE
-* ESP32 Arduino core
-* DHT sensor library
-* `math.h` library for `isnan()` functionality
+| DHT11 Pin | ESP32  |
+| --------- | ------ |
+| VCC       | 3.3 V  |
+| DATA      | GPIO 4 |
+| GND       | GND    |
+
+A 10 kΩ pull-up resistor was connected between the VCC and DATA lines.
 
 ---
 
-## 5. Hardware Connections
+## 4. Software and Libraries
 
-The DHT11 sensor was connected to the ESP32 as follows:
+The implementation was developed using the Arduino IDE.
 
-| DHT11 Pin | ESP32 Connection |
-| --------- | ---------------- |
-| VCC       | 3.3 V            |
-| DATA      | GPIO 4           |
-| GND       | GND              |
+### Libraries Used
 
-A 10 kΩ pull-up resistor was used between the VCC and DATA lines.
+```cpp
+#include <DHT.h>
+#include <math.h>
+```
 
-### Connection Diagram
+* `DHT.h` is used for communication with the DHT sensor.
+* `math.h` provides the `isnan()` function used to detect invalid sensor readings.
 
-```text
-        DHT11
-      ┌─────────┐
- VCC ─┤         ├── 3.3V
- DATA ┤         ├── GPIO 4
- GND ─┤         ├── GND
-      └─────────┘
-         │
-      10 kΩ
-     Pull-up
+---
+
+## 5. Sensor Configuration
+
+The sensor is configured on GPIO 4.
+
+```cpp
+#define DHTPIN 4
+#define DHTTYPE DHT11
+
+DHT dht(DHTPIN, DHTTYPE);
+```
+
+The DHT sensor is initialized in the `setup()` function using:
+
+```cpp
+dht.begin();
 ```
 
 ---
 
-## 6. Program Structure
+## 6. SensorBundle Structure
 
-The program is divided into several main sections:
-
-1. DHT11 configuration
-2. `SensorBundle` structure
-3. Sample storage
-4. Median filtering
-5. Sensor reading with retries
-6. JSON output
-7. Setup
-8. Main loop
-
----
-
-## 7. SensorBundle Structure
-
-A `SensorBundle` structure was created to store the sensor readings and their validity status.
+A `SensorBundle` structure is used to organize the sensor data and validity information.
 
 ```cpp
 struct SensorBundle {
@@ -111,49 +96,47 @@ The structure stores:
 
 * Temperature value
 * Humidity value
-* Temperature validity
-* Humidity validity
-* Overall reading status
+* Temperature validity status
+* Humidity validity status
+* Overall sensor status
 
-This makes it easier to determine whether a sensor reading is valid before using it.
+This allows the program to distinguish between valid and invalid readings.
 
 ---
 
-## 8. Sensor Reading and Error Handling
+## 7. Sensor Reading and Error Handling
 
-The `readSensor()` function reads temperature and humidity from the DHT11.
+The `readSensor()` function is responsible for obtaining temperature and humidity values.
 
-The program attempts to read the sensor a maximum of **three times** if the first attempt fails.
+A reading is considered successful only when both values are valid.
 
-The sensor values are checked using `isnan()`.
-
-If both temperature and humidity are valid:
-
-```text
-Reading successful
-       ↓
-Store temperature
-       ↓
-Store humidity
-       ↓
-Mark reading as valid
+```cpp
+if (!isnan(temperature) && !isnan(humidity))
 ```
 
-If the reading fails:
+If either value is `NaN`, the reading is considered invalid.
+
+The program retries the sensor read up to **three times**.
 
 ```text
-Reading failed
+Sensor Reading
       ↓
-Retry
+Check temperature and humidity
       ↓
-Maximum 3 attempts
-      ↓
-If all fail → Mark reading INVALID
+   Valid?
+   /    \
+ Yes     No
+  ↓       ↓
+Accept   Retry
+          ↓
+       Attempt 2
+          ↓
+       Attempt 3
+          ↓
+   Mark as INVALID
 ```
 
-The program prints the failed attempt number to the Serial Monitor.
-
-Example:
+A failed attempt is displayed on the Serial Monitor:
 
 ```text
 DHT11 read failed - attempt 1/3
@@ -165,50 +148,50 @@ If all three attempts fail:
 DHT11 read failed after 3 attempts.
 ```
 
-The program does not terminate or crash when this happens.
+The program then continues running instead of stopping.
 
 ---
 
-## 9. Sampling Method
+## 8. Sample Collection
 
-The program collects **four sensor readings per cycle**.
+The program collects **four samples during each cycle**.
 
 ```cpp
 const int TOTAL_SAMPLES = 4;
 ```
 
-There is a **2-second interval** between consecutive readings:
-
-```cpp
-const unsigned long SAMPLE_INTERVAL = 2000;
-```
-
-Each sample is stored in arrays:
+Temperature and humidity values are stored separately:
 
 ```cpp
 float temperatureSamples[TOTAL_SAMPLES];
 float humiditySamples[TOTAL_SAMPLES];
 ```
 
-Valid readings are stored normally, while failed readings are stored as `NAN`.
+A **2-second interval** is maintained between sensor readings:
+
+```cpp
+const unsigned long SAMPLE_INTERVAL = 2000;
+```
+
+If a sensor reading is unsuccessful, `NAN` is stored for that sample.
 
 ---
 
-## 10. Median Filtering
+## 9. Median Filtering
 
-A median filter is used to reduce the effect of sudden abnormal sensor values.
+A median filter is used to reduce the effect of a single abnormal reading.
 
-The program uses the **last three samples**, which are Samples 2, 3 and 4.
+The program uses the **last three samples** from each four-sample cycle.
 
-For example, if three temperature readings are:
+For example:
 
 ```text
-28.2
-35.0
-28.4
+Sample 2 = 28.2
+Sample 3 = 35.0
+Sample 4 = 28.4
 ```
 
-The sorted values are:
+After sorting:
 
 ```text
 28.2
@@ -219,18 +202,18 @@ The sorted values are:
 The median value is:
 
 ```text
-28.4 °C
+28.4
 ```
 
-Therefore, the abnormal value of 35.0 °C does not directly affect the final filtered result.
+Therefore, the abnormal value does not directly become the final filtered result.
 
-The same median filtering process is applied to humidity.
+The same method is applied to both temperature and humidity.
 
 ---
 
-## 11. Median Filter Validation
+## 10. Median Filter Validation
 
-Before applying the median filter, the program checks whether the last three samples are valid.
+Before calculating the median, the program checks whether the last three samples are valid.
 
 The filter is applied only when:
 
@@ -241,28 +224,30 @@ The filter is applied only when:
 * Sample 3 humidity is valid
 * Sample 4 humidity is valid
 
-If any of these readings are invalid, the median filter is not used.
+If any of these readings are invalid, the median filter is skipped.
 
-The Serial Monitor then displays:
+The Serial Monitor displays:
 
 ```text
 Median filter unavailable.
 One or more of the last 3 samples is invalid.
 ```
 
+This prevents invalid values from being used in the filtered result.
+
 ---
 
-## 12. JSON Output
+## 11. JSON Serial Output
 
-After successful filtering, the final sensor values are printed in JSON format.
+The final sensor result is printed in JSON format.
 
-Example:
+For a valid reading:
 
 ```json
-{"temp":28.4,"humidity":65.2,"ok":true}
+{"temp":28.4,"humidity":65.0,"ok":true}
 ```
 
-The JSON fields are:
+The fields are:
 
 | Field      | Description                                  |
 | ---------- | -------------------------------------------- |
@@ -270,132 +255,255 @@ The JSON fields are:
 | `humidity` | Filtered relative humidity in %              |
 | `ok`       | Indicates whether the final reading is valid |
 
-If the required samples are not valid, the program outputs:
+When the final reading is invalid:
 
 ```json
 {"temp":null,"humidity":null,"ok":false}
 ```
 
-This format can be used later for IoT telemetry, MQTT communication, and cloud integration.
+This format makes the sensor data suitable for future IoT telemetry and MQTT communication.
 
 ---
 
-## 13. Serial Monitor Output
+## 12. JSON Generation
 
-The program prints information about every sampling cycle.
+The `printJSON()` function generates the structured serial output.
 
-A typical output structure is:
+For valid sensor data:
+
+```cpp
+printJSON(
+  filteredTemperature,
+  filteredHumidity,
+  true
+);
+```
+
+For invalid data:
+
+```cpp
+printJSON(NAN, NAN, false);
+```
+
+Therefore, the output clearly indicates whether the sensor data can be used.
+
+---
+
+## 13. Program Flow
+
+The overall operation of the program is:
+
+```text
+ESP32 Start
+     ↓
+Initialize Serial Monitor
+     ↓
+Initialize DHT11
+     ↓
+Start sampling cycle
+     ↓
+Take sensor reading
+     ↓
+Check for NaN
+     ↓
+Retry up to 3 times if required
+     ↓
+Store reading
+     ↓
+Wait 2 seconds
+     ↓
+Repeat until 4 samples are collected
+     ↓
+Check last 3 samples
+     ↓
+All valid?
+   /       \
+ Yes        No
+  ↓          ↓
+Median      Mark
+Filter      output invalid
+  ↓          ↓
+JSON Output
+     ↓
+Start next cycle
+```
+
+---
+
+## 14. Serial Monitor Output
+
+The Serial Monitor operates at:
+
+```text
+115200 baud
+```
+
+At startup, the program displays the configuration:
+
+```text
+======================================
+Nexforz Day 5 - DHT11 Sensor
+======================================
+GPIO: 4
+Sensor: DHT11
+Retries: 3
+Samples per cycle: 4
+Median filter: Last 3 samples
+```
+
+A normal sampling cycle produces output similar to:
 
 ```text
 ======================================
 NEW 4-SAMPLE CYCLE
 ======================================
 
-Sample 1: temperature_c = 28.3, humidity_percent = 64.0
-Sample 2: temperature_c = 28.4, humidity_percent = 64.0
-Sample 3: temperature_c = 28.4, humidity_percent = 65.0
-Sample 4: temperature_c = 28.3, humidity_percent = 65.0
+Sample 1: temperature_c = XX.X, humidity_percent = XX.X
+Sample 2: temperature_c = XX.X, humidity_percent = XX.X
+Sample 3: temperature_c = XX.X, humidity_percent = XX.X
+Sample 4: temperature_c = XX.X, humidity_percent = XX.X
 
 ----- MEDIAN FILTER -----
 Median uses Samples 2, 3 and 4.
 
-Filtered temperature_c: 28.4
-Filtered humidity_percent: 65.0
+Filtered temperature_c: XX.X
+Filtered humidity_percent: XX.X
 
 SensorBundle JSON:
-{"temp":28.4,"humidity":65.0,"ok":true}
+{"temp":XX.X,"humidity":XX.X,"ok":true}
 ```
+
+The exact numerical values depend on the readings obtained from the sensor during testing.
 
 ---
 
-## 14. Error Handling Implemented
+## 15. Error Handling
 
 The following error-handling mechanisms were implemented:
 
-### 14.1 NaN Detection
+### Invalid Sensor Readings
 
-The program checks for invalid sensor values using:
+`isnan()` is used to detect invalid temperature and humidity values.
 
-```cpp
-isnan()
-```
+### Automatic Retries
 
-### 14.2 Retry Mechanism
+A failed sensor reading is retried up to three times.
 
-Each failed sensor reading is retried up to three times.
+### Invalid Sample Storage
 
-### 14.3 Invalid Sample Handling
+If all attempts fail, the sample is stored as `NAN`.
 
-If all three attempts fail, the sample is marked as invalid using `NAN`.
+### Filter Protection
 
-### 14.4 Median Filter Validation
+The median filter is used only when the required samples are valid.
 
-The median filter is used only when all three required samples are valid.
+### Continuous Execution
 
-### 14.5 Continuous Program Execution
-
-Sensor failures do not stop the ESP32 `loop()` function. The program continues with the next sampling cycle.
+A failed sensor reading does not terminate the ESP32 program. The next cycle continues normally.
 
 ---
 
-## 15. Testing
+## 16. Testing and Verification
 
-The implementation was tested by connecting the DHT11 to GPIO 4 and monitoring the output through the Arduino IDE Serial Monitor.
+The implementation was tested using the ESP32 and DHT11 sensor.
 
-The following functionality was verified:
+The following features were implemented and verified:
 
-* ESP32 successfully initializes the DHT11.
-* Temperature readings are obtained.
-* Humidity readings are obtained.
-* Four samples are collected per cycle.
-* A 2-second interval is maintained between readings.
-* Failed readings are detected.
-* Failed readings are retried.
-* Invalid samples are handled using `NAN`.
-* Median filtering is applied to the last three samples when valid.
-* JSON output is generated successfully.
-* The program continues running even when a reading fails.
-
----
-
-## 16. Learning Outcomes
-
-Through this task, the following concepts were learned:
-
-* Interfacing a DHT sensor with ESP32.
-* Reading temperature and humidity data.
-* Handling unreliable sensor readings.
-* Using retry mechanisms for sensor communication.
-* Working with `NAN` values and `isnan()`.
-* Using structures to organize sensor data.
-* Applying a median filter to sensor readings.
-* Generating machine-readable JSON output.
-* Designing sensor code that can continue operating despite individual read failures.
+| Test                          | Status    |
+| ----------------------------- | --------- |
+| ESP32 initialization          | Completed |
+| DHT sensor initialization     | Completed |
+| GPIO 4 configuration          | Completed |
+| Temperature reading           | Completed |
+| Humidity reading              | Completed |
+| `NaN` detection               | Completed |
+| Three-attempt retry mechanism | Completed |
+| Four-sample collection        | Completed |
+| 2-second sampling interval    | Completed |
+| Median filtering              | Completed |
+| JSON output                   | Completed |
+| Invalid JSON output           | Completed |
+| Continuous program execution  | Completed |
 
 ---
 
-## 17. Future Scope
+## 17. Five-Minute Serial Log
 
-The sensor data generated in this task can be used in future IoT applications.
+A continuous Serial Monitor log is required as part of the submission.
 
-Possible extensions include:
+The ESP32 was monitored using the Serial Monitor at **115200 baud** to observe the sensor readings, error handling, filtering, and JSON output.
 
-* Sending sensor data to the Nexforz IoT Lab.
-* Publishing sensor readings using MQTT.
-* Storing telemetry data in a cloud platform.
-* Adding timestamps to sensor readings.
-* Monitoring temperature and humidity remotely.
-* Adding additional sensors for environmental monitoring.
+The five-minute log demonstrates:
+
+* Continuous sensor operation
+* Repeated temperature readings
+* Repeated humidity readings
+* Sensor retry behavior
+* Sample collection
+* Median filtering
+* JSON output
+* Validity status
+
+The actual Serial Monitor output should be saved or captured directly from the hardware test and submitted along with the sketch.
 
 ---
 
-## 18. Conclusion
+## 18. Optional Deep-Sleep Variant
 
-The Day 5 DHT sensor task was successfully implemented using an ESP32 and DHT11 sensor.
+Deep sleep was listed as an optional bonus feature.
 
-The system reads temperature and humidity through GPIO 4, performs up to three retries for failed readings, stores multiple samples, and applies a median filter to the last three valid samples. Invalid readings are handled safely without stopping the program.
+The current implementation focuses on the main sensor-reading requirements and does not include the deep-sleep variant.
 
-The final filtered sensor values are converted into a simple JSON structure containing temperature, humidity, and validity status. This provides a suitable foundation for the upcoming IoT telemetry and MQTT tasks.
+The core implementation therefore concentrates on:
 
-**Day 5 implementation completed successfully.**
+* Reliable sensor reading
+* Error handling
+* Retry mechanism
+* Median filtering
+* JSON serial output
 
+---
+
+## 19. Learning Outcomes
+
+This task provided practical experience with:
+
+* Interfacing a DHT sensor with ESP32
+* Reading temperature and humidity data
+* Detecting `NaN` sensor values
+* Implementing retry mechanisms
+* Handling sensor failures
+* Using structures for sensor data
+* Collecting multiple samples
+* Applying median filtering
+* Generating JSON telemetry
+* Designing sensor code for continuous operation
+
+---
+
+## 20. Future Scope
+
+The implemented JSON data structure can be extended for future IoT applications.
+
+Possible improvements include:
+
+* Sending the JSON payload to an IoT cloud platform
+* Publishing the data using MQTT
+* Adding timestamps to sensor readings
+* Displaying sensor values on a web dashboard
+* Adding additional environmental sensors
+* Implementing ESP32 deep sleep for power-efficient operation
+
+---
+
+## 21. Conclusion
+
+The DHT sensor was successfully interfaced with the ESP32 using GPIO 4.
+
+The implementation provides robust handling of invalid sensor readings by checking for `NaN` values and retrying failed reads up to three times. Four samples are collected during each cycle, and the last three valid samples are processed using a median filter to reduce the effect of individual abnormal readings.
+
+The final temperature and humidity values are provided in a structured JSON format containing `temp`, `humidity`, and `ok` fields. When valid data is unavailable, the system outputs `null` values and sets `ok` to `false`.
+
+The program continues operating even when individual sensor readings fail, providing a reliable foundation for future IoT telemetry and MQTT-based communication.
+
+**Day 5 – Task 3 implementation completed successfully.**
