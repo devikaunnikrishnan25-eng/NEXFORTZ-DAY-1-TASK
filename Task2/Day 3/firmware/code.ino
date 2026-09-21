@@ -1,9 +1,8 @@
 #include <WiFi.h>
-#include <time.h>
 #include "secrets.h"
 
 // ---------- WiFi Settings ----------
-const unsigned long CONNECT_TIMEOUT = 10000;       // 10 seconds
+const unsigned long CONNECT_TIMEOUT = 10000;   // 10 seconds
 const unsigned long HEALTH_CHECK_INTERVAL = 5000; // 5 seconds
 
 const unsigned long BACKOFF_DELAYS[] = {
@@ -16,11 +15,6 @@ const unsigned long BACKOFF_DELAYS[] = {
 
 const int MAX_BACKOFF_LEVEL = 4;
 
-// ---------- NTP Settings ----------
-const char* NTP_SERVER = "pool.ntp.org";
-const long GMT_OFFSET_SEC = 19800;   // IST = UTC + 5:30
-const int DAYLIGHT_OFFSET_SEC = 0;
-
 // ---------- State Variables ----------
 unsigned long connectStartTime = 0;
 unsigned long lastHealthCheck = 0;
@@ -30,31 +24,10 @@ int backoffLevel = 0;
 bool connecting = false;
 bool wasConnected = false;
 
-// ---------- NTP Time Sync ----------
-void syncTime() {
-  Serial.println("[NTP] Synchronizing time...");
-
-  configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
-
-  struct tm timeinfo;
-
-  if (getLocalTime(&timeinfo, 10000)) {
-    Serial.println("[NTP] Time synchronized.");
-
-    char timeString[30];
-    strftime(timeString, sizeof(timeString),
-             "%Y-%m-%dT%H:%M:%S%z", &timeinfo);
-
-    Serial.print("[NTP] Current time: ");
-    Serial.println(timeString);
-  } 
-  else {
-    Serial.println("[NTP] Time synchronization failed.");
-  }
-}
 
 // ---------- Start WiFi Connection ----------
 void startWiFiConnection() {
+
   Serial.println();
   Serial.println("[WIFI] Starting connection attempt...");
 
@@ -65,9 +38,11 @@ void startWiFiConnection() {
   connecting = true;
 }
 
+
 // ---------- Handle WiFi Connection ----------
 void handleWiFiConnection() {
 
+  // If currently trying to connect
   if (connecting) {
 
     if (WiFi.status() == WL_CONNECTED) {
@@ -94,11 +69,9 @@ void handleWiFiConnection() {
 
       Serial.println("[WIFI] Connection successful.");
       Serial.println();
-
-      // Synchronize time after WiFi connection
-      syncTime();
     }
 
+    // Connection attempt timed out
     else if (millis() - connectStartTime >= CONNECT_TIMEOUT) {
 
       connecting = false;
@@ -120,13 +93,13 @@ void handleWiFiConnection() {
     }
   }
 
-  // ---------- Connection Lost ----------
+
+  // If WiFi is disconnected and we're not currently connecting
   if (!connecting && WiFi.status() != WL_CONNECTED) {
 
     if (wasConnected) {
 
       Serial.println("[WIFI] Connection lost!");
-
       wasConnected = false;
 
       unsigned long retryDelay = BACKOFF_DELAYS[backoffLevel];
@@ -142,17 +115,19 @@ void handleWiFiConnection() {
       }
     }
 
-    // Start another connection attempt
+    // Start another attempt when retry time arrives
     if (millis() >= nextRetryTime) {
       startWiFiConnection();
     }
   }
 }
 
+
 // ---------- Setup ----------
 void setup() {
 
   Serial.begin(115200);
+
   delay(1000);
 
   Serial.println();
@@ -165,12 +140,13 @@ void setup() {
   startWiFiConnection();
 }
 
+
 // ---------- Main Loop ----------
 void loop() {
 
   handleWiFiConnection();
 
-  // ---------- WiFi Health Check ----------
+  // Periodic WiFi health check
   if (millis() - lastHealthCheck >= HEALTH_CHECK_INTERVAL) {
 
     lastHealthCheck = millis();
